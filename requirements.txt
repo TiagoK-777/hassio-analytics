@@ -1,0 +1,5 @@
+streamlit-shadcn-ui
+streamlit
+pandas
+requests
+st_link_analysis
