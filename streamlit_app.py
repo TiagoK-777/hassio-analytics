@@ -27,7 +27,7 @@ navPage = ui.tabs(options=[
     'Visão Geral',
     'Visão de Teia',
     'Tabela de Entidades',
-], default_value='Visão Geral', key="navigation")
+], default_value='Início', key="navigation")
 
 if navPage == 'Início':
     st.title("Bem-vindo ao Smart Chosk - Ferramentas do HomeAssistant")
