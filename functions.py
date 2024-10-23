@@ -8,7 +8,6 @@ from st_link_analysis.component.icons import SUPPORTED_ICONS
 
 def return_entities(url, token):
         
-    # url = "https://duckbee.home.nom.br/api/states"
     url = f"{url}/api/states"
 
     payload = json.dumps({})
