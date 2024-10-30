@@ -3,6 +3,8 @@ from functions import return_entities  # Certifique-se de que esta função est�
 import streamlit_shadcn_ui as ui
 import random
 from st_link_analysis import st_link_analysis, NodeStyle, EdgeStyle
+import requests
+from bs4 import BeautifulSoup  # Certifique-se de ter o BeautifulSoup instalado
 
 # Configurações
 st.set_page_config(layout="wide", page_title='Smart Chosk - Ferramentas do HomeAssistant', initial_sidebar_state='collapsed')
@@ -27,6 +29,7 @@ navPage = ui.tabs(options=[
     'Visão Geral',
     'Visão de Teia',
     'Tabela de Entidades',
+    'Teste Scrape'
 ], default_value='Início', key="navigation")
 
 if navPage == 'Início':
@@ -250,5 +253,76 @@ elif navPage == 'Tabela de Entidades':
     if st.session_state['dfEntidades'] is not None:
         dfEntidades = st.session_state['dfEntidades']
         st.dataframe(dfEntidades, hide_index=True, use_container_width=True)
+
+
+elif navPage == 'Teste Scrape':
+    st.title("Teste o seu Scrape antes de montar no HomeAssistant/Node-Red")
+
+    st.markdown("""
+    ### Instruções:
+    - **URL**: Insira a URL completa da página da web que deseja fazer o scraping.
+    - **Seletor CSS**: Forneça o seletor CSS do elemento que deseja extrair. Pode ser um ID, classe ou qualquer seletor válido.
+    - **Exemplo de Seletor**: Para selecionar um elemento com ID "preço", use `#preco`. Para uma classe "titulo", use `.titulo`.
+    - **Atenção**: Certifique-se de que a URL é acessível e que o seletor corresponde a um ou mais elementos na página.
+    """)
+
+    # Formulário de entrada
+    with st.form(key='scrape_form'):
+        url = st.text_input('URL', value='', help='Insira a URL da página que deseja extrair.')
+        selector = st.text_input('Seletor CSS', value='', help='Insira o seletor CSS do elemento.')
+        submit_scrape = st.form_submit_button('Enviar')
+
+    if submit_scrape:
+        if url and selector:
+            try:
+                # Realiza a requisição HTTP
+                response = requests.get(url)
+                response.raise_for_status()  # Verifica se a requisição foi bem-sucedida
+
+                # Analisa o conteúdo HTML
+                soup = BeautifulSoup(response.content, 'html.parser')
+
+                # Seleciona os elementos com base no seletor CSS
+                elements = soup.select(selector)
+
+                if elements:
+                    st.success(f'Foram encontrados {len(elements)} elemento(s) com o seletor "{selector}".')
+                    # Exibe os elementos encontrados
+                    for idx, element in enumerate(elements, start=1):
+                        st.markdown(f"#### Resultado {idx}:")
+                        st.code(element.get_text(strip=True), language='html')
+                else:
+                    st.warning(f'Nenhum elemento encontrado com o seletor "{selector}".')
+            except requests.exceptions.RequestException as e:
+                st.error(f"Erro ao acessar a URL: {e}")
+            except Exception as e:
+                st.error(f"Ocorreu um erro: {e}")
+        else:
+            st.warning('Por favor, preencha tanto a URL quanto o Seletor CSS.')
+
+        # Dicas para conversão de texto para numérico
+        st.markdown("### Dicas para Converter o Retorno em Valor Numérico")
+
+        st.markdown("""
+        Se o resultado for um valor como **"R$ 7.379,91"**, você pode precisar converter esse texto em um número para uso em cálculos.
+        """)
+
+        st.markdown("#### Em Jinja2 (Home Assistant):")
+        st.markdown("""
+        - Criar um ajudante pegando deste sensor.
+        ```jinja2
+        {% set texto = "R$ 7.379,91" %}
+        {% set valor = texto | replace("R$ ", "") | replace(".", "") | replace(",", ".") | trim | float %}
+        """)
+
+        st.markdown("#### Em Node-Red:") 
+        st.markdown("""
+        Em um nó Function, realizar o tratamento.
+        ```
+        msg.payload = parseFloat(msg.payload.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
+        """)
+
+
+
     else:
         st.warning('Por favor, insira a URL Externa e o Token na barra lateral e clique em Enviar.')
