@@ -29,8 +29,9 @@ navPage = ui.tabs(options=[
     'Visão Geral',
     'Visão de Teia',
     'Tabela de Entidades',
-    'Teste Scrape'
-], default_value='Início', key="navigation")
+    'Teste Scrape',
+    'Cálculo de Hardware',  # Nova tela adicionada
+], default_value='Visão Geral', key="navigation")
 
 if navPage == 'Início':
     st.title("Bem-vindo ao Smart Chosk - Ferramentas do HomeAssistant")
@@ -322,7 +323,114 @@ elif navPage == 'Teste Scrape':
         msg.payload = parseFloat(msg.payload.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
         """)
 
+        
+elif navPage == 'Cálculo de Hardware':
+    st.title("Cálculo de Hardware Necessário para o Home Assistant")
+
+    st.markdown("""
+    ### Instruções:
+    - Selecione a quantidade de dispositivos que você pretende utilizar no Home Assistant.
+    - Com base nos dispositivos selecionados, o sistema calculará o hardware mínimo recomendado.
+    """)
+
+    # Formulário de entrada
+    with st.form(key='hardware_form'):
+        st.markdown("#### Dispositivos Básicos")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            num_luzes = st.number_input('Número de Luzes', min_value=0, value=0, step=1)
+        with col2:
+            num_tomadas = st.number_input('Número de Tomadas Inteligentes', min_value=0, value=0, step=1)
+        with col3:
+            num_sensores_abertura = st.number_input('Número de Sensores de Abertura', min_value=0, value=0, step=1)
+        with col4:
+            num_sensores_movimento = st.number_input('Número de Sensores de Movimento', min_value=0, value=0, step=1)
+
+        st.markdown("#### Dispositivos de Alta Demanda")
+        col3, col4 = st.columns(2)
+        with col3:
+            num_cameras = st.number_input('Número de Câmeras', min_value=0, value=0, step=1)
+            num_dispositivos_streaming = st.number_input('Número de Dispositivos de Streaming (Chromecast, etc.)', min_value=0, value=0, step=1)
+
+        st.markdown("#### Integrações Adicionais")
+        col5, col6 = st.columns(2)
+        with col5:
+            usar_assistente_virtual = st.checkbox('Utilizar Assistente Virtual (Alexa, Google Assistant)')
+            usar_automacoes_complexas = st.checkbox('Utilizar Automações Complexas')
+            usar_frigate = st.checkbox('Utilizar o Frigate (Add-on para detecção de câmeras)')
+        with col6:
+            usar_addons = st.checkbox('Utilizar Add-ons Pesados (ex: Node-Red, InfluxDB)')
+
+        submit_hardware = st.form_submit_button('Calcular Hardware')
+
+    if submit_hardware:
+        # Cálculo do hardware necessário
+        # Definir valores base
+        cpu_base = 1  # 1 núcleo
+        ram_base = 1  # 1 GB
+        storage_base = 16  # 16 GB
+
+        # Ajustes com base nos dispositivos básicos
+        dispositivos_basicos = num_luzes + num_tomadas + num_sensores_abertura + num_sensores_movimento
+        cpu_base += dispositivos_basicos * 0.05  # Cada dispositivo básico adiciona 0.05 núcleos
+        ram_base += dispositivos_basicos * 0.02  # Cada dispositivo básico adiciona 20 MB de RAM
+
+        # Ajustes com base em dispositivos de alta demanda
+        cpu_base += num_cameras * 0.5  # Cada câmera adiciona 0.5 núcleos
+        ram_base += num_cameras * 0.5  # Cada câmera adiciona 500 MB de RAM
+
+        cpu_base += num_dispositivos_streaming * 0.1
+        ram_base += num_dispositivos_streaming * 0.05
+
+        # Ajustes com base em integrações adicionais
+        if usar_assistente_virtual:
+            cpu_base += 0.2
+            ram_base += 0.1
+
+        if usar_automacoes_complexas:
+            cpu_base += 0.3
+            ram_base += 0.2
+
+        if usar_addons:
+            cpu_base += 0.5
+            ram_base += 0.5
+            storage_base += 8  # Add-ons pesados requerem mais espaço em disco
+
+        # Ajustes específicos para o Frigate
+        if usar_frigate:
+            cpu_base += num_cameras * 1.0  # Frigate adiciona 1 núcleo por câmera
+            ram_base += num_cameras * 0.5  # Frigate adiciona 500 MB de RAM por câmera
+            storage_base += num_cameras * 10  # Frigate requer armazenamento extra por câmera (10 GB)
+
+        # Arredondar valores
+        cpu_recomendado = round(cpu_base, 1)
+        ram_recomendado = round(ram_base, 1)
+        storage_recomendado = round(storage_base)
+
+        # Exibir resultados
+        st.markdown("### Hardware Recomendado:")
+        st.markdown(f"- **CPU**: {cpu_recomendado} núcleo(s)")
+        st.markdown(f"- **Memória RAM**: {ram_recomendado} GB")
+        st.markdown(f"- **Armazenamento**: {storage_recomendado} GB")
+
+        # Sugestões de hardware com base nos resultados
+        st.markdown("### Sugestões de Hardware:")
+
+        if cpu_recomendado <= 2 and ram_recomendado <= 2:
+            st.markdown("- Um **Raspberry Pi 4** com 2GB de RAM pode ser suficiente.")
+            st.markdown("- **Processador**: Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) 64-bit SoC @ 1.5GHz")
+        elif cpu_recomendado <= 4 and ram_recomendado <= 4:
+            st.markdown("- Considere um **Raspberry Pi 4** com 4GB de RAM ou um **mini PC**.")
+            st.markdown("- **Processadores sugeridos**: Intel Celeron J4105, Intel Pentium Silver N5000")
+        else:
+            st.markdown("- É recomendado um **PC dedicado** ou um **servidor NAS** com recursos mais robustos.")
+            st.markdown("- **Processadores sugeridos**: Intel Core i3/i5/i7 de última geração, AMD Ryzen 3/5/7")
+
+        st.markdown("#### Observações:")
+        st.markdown("- Estes são valores estimados. Dependendo das especificidades dos dispositivos e integrações, os requisitos podem variar.")
+        st.markdown("- Para uso com câmeras e add-ons pesados como o Frigate, é altamente recomendado usar um hardware mais robusto.")
 
 
     else:
         st.warning('Por favor, insira a URL Externa e o Token na barra lateral e clique em Enviar.')
+
