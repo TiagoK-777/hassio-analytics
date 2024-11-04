@@ -366,8 +366,8 @@ elif navPage == 'Cálculo de Hardware':
     if submit_hardware:
         # Cálculo do hardware necessário
         # Definir valores base
-        cpu_base = 1  # 1 núcleo
-        ram_base = 1  # 1 GB
+        cpu_base = 1.0  # 1 núcleo
+        ram_base = 1.0  # 1 GB
         storage_base = 16  # 16 GB
 
         # Ajustes com base nos dispositivos básicos
@@ -402,6 +402,10 @@ elif navPage == 'Cálculo de Hardware':
             ram_base += num_cameras * 0.5  # Frigate adiciona 500 MB de RAM por câmera
             storage_base += num_cameras * 10  # Frigate requer armazenamento extra por câmera (10 GB)
 
+        # Limitar o número de núcleos a 16
+        max_cores = 16
+        cpu_base = min(cpu_base, max_cores)
+
         # Arredondar valores
         cpu_recomendado = round(cpu_base, 1)
         ram_recomendado = round(ram_base, 1)
@@ -409,7 +413,7 @@ elif navPage == 'Cálculo de Hardware':
 
         # Exibir resultados
         st.markdown("### Hardware Recomendado:")
-        st.markdown(f"- **CPU**: {cpu_recomendado} núcleo(s)")
+        st.markdown(f"- **CPU**: {cpu_recomendado} núcleo(s) (máximo recomendado: {max_cores} núcleos)")
         st.markdown(f"- **Memória RAM**: {ram_recomendado} GB")
         st.markdown(f"- **Armazenamento**: {storage_recomendado} GB")
 
@@ -422,11 +426,19 @@ elif navPage == 'Cálculo de Hardware':
         elif cpu_recomendado <= 4 and ram_recomendado <= 4:
             st.markdown("- Considere um **Raspberry Pi 4** com 4GB de RAM ou um **mini PC**.")
             st.markdown("- **Processadores sugeridos**: Intel Celeron J4105, Intel Pentium Silver N5000")
+        elif cpu_recomendado <= 8 and ram_recomendado <= 8:
+            st.markdown("- Um **mini PC** mais potente ou um **servidor NAS** com melhor desempenho.")
+            st.markdown("- **Processadores sugeridos**: Intel Core i3/i5, AMD Ryzen 3/5")
+        elif cpu_recomendado <= 16 and ram_recomendado <= 16:
+            st.markdown("- Um **PC dedicado** ou **servidor** de alto desempenho.")
+            st.markdown("- **Processadores sugeridos**: Intel Core i7/i9, AMD Ryzen 7/9, Intel Xeon E-series")
         else:
-            st.markdown("- É recomendado um **PC dedicado** ou um **servidor NAS** com recursos mais robustos.")
-            st.markdown("- **Processadores sugeridos**: Intel Core i3/i5/i7 de última geração, AMD Ryzen 3/5/7")
+            st.markdown("- **Atenção**: Os requisitos calculados excedem os processadores comuns.")
+            st.markdown("- Considere distribuir a carga em múltiplas máquinas ou utilizar hardware de nível servidor.")
+            st.markdown("- **Processadores sugeridos**: Múltiplos processadores Intel Xeon ou AMD EPYC")
 
         st.markdown("#### Observações:")
+        st.markdown(f"- O número máximo de núcleos considerado é {max_cores}. Para requisitos acima disso, recomenda-se soluções especializadas.")
         st.markdown("- Estes são valores estimados. Dependendo das especificidades dos dispositivos e integrações, os requisitos podem variar.")
         st.markdown("- Para uso com câmeras e add-ons pesados como o Frigate, é altamente recomendado usar um hardware mais robusto.")
 
