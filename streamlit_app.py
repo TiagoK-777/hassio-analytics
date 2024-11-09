@@ -5,6 +5,8 @@ import random
 from st_link_analysis import st_link_analysis, NodeStyle, EdgeStyle
 import requests
 from bs4 import BeautifulSoup  # Certifique-se de ter o BeautifulSoup instalado
+from collections import OrderedDict
+import yaml  # Biblioteca para trabalhar com YAML
 
 
 
@@ -33,6 +35,7 @@ navPage = ui.tabs(options=[
     'Tabela de Entidades',
     'Teste Scrape',
     'Cálculo de Hardware (Beta)',
+    'Assistente de Configuração do Frigate',  # Nova página adicionada
 ], default_value='Início', key="navigation")
 
 if navPage == 'Início':
@@ -471,5 +474,148 @@ elif navPage == 'Cálculo de Hardware (Beta)':
         if usar_frigate:
             st.markdown("- **Câmeras de Baixa Resolução e Taxa de Quadros Reduzida**: Câmeras com resolução de até 720p e taxa de quadros de 5 FPS tendem a consumir menos recursos de CPU. Se sua câmera for de alta resolução, como 4K, considere configurar o Frigate para utilizar a transmissão secundária (substream) em vez da transmissão principal, o que pode reduzir significativamente a carga de processamento.")
 
-    else:
-        st.warning('Por favor, insira a URL Externa e o Token na barra lateral e clique em Enviar.')
+elif navPage == 'Assistente de Configuração do Frigate':
+    st.title("Assistente de Configuração do Frigate")
+
+    st.markdown("""
+    ### Instruções:
+    - Preencha as configurações gerais do Frigate, como informações do MQTT.
+    - Adicione as câmeras que deseja configurar, preenchendo os detalhes de cada uma.
+    - Ao final, será gerado o conteúdo do arquivo `frigate.yml` com base nas informações fornecidas.
+    """)
+
+    # Lista de objetos disponíveis para rastreamento
+    available_objects = [
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
+        "boat", "traffic light", "fire hydrant", "street sign", "stop sign",
+        "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+        "elephant", "bear", "zebra", "giraffe", "hat", "backpack", "umbrella",
+        "shoe", "eye glasses", "handbag", "tie", "suitcase", "frisbee", "skis",
+        "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
+        "skateboard", "surfboard", "tennis racket", "bottle", "plate", "wine glass",
+        "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
+        "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake",
+        "chair", "couch", "potted plant", "bed", "mirror", "dining table",
+        "window", "desk", "toilet", "door", "tv", "laptop", "mouse", "remote",
+        "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
+        "refrigerator", "blender", "book", "clock", "vase", "scissors",
+        "teddy bear", "hair drier", "toothbrush", "hair brush"
+    ]
+
+    # Formulário de entrada
+    with st.form(key='frigate_form'):
+        st.markdown("#### Configurações Gerais")
+        col_mqtt1, col_mqtt2, col_mqtt3 = st.columns(3)
+        with col_mqtt1:
+            mqtt_host = st.text_input('Host MQTT', value='', help='Endereço IP ou hostname do broker MQTT.')
+        with col_mqtt2:
+            mqtt_user = st.text_input('Usuário MQTT', value='', help='Usuário para autenticação no MQTT.')
+        with col_mqtt3:
+            mqtt_password = st.text_input('Senha MQTT', value='', type='password', help='Senha para autenticação no MQTT.')
+
+        st.markdown("#### Configurações das Câmeras")
+
+        camera_list = []
+
+        num_cameras = st.number_input('Número de Câmeras', min_value=1, value=1, step=1, help='Quantas câmeras você deseja configurar?')
+
+        for i in range(int(num_cameras)):
+            st.markdown(f"##### Configuração da Câmera {i+1}")
+            camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}')
+            camera_path = st.text_input(f'URL RTSP da Câmera {i+1}', value='', key=f'camera_path_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
+            
+            col_cam1, col_cam2, col_cam3 = st.columns(3)
+            with col_cam1:
+                detect_width = st.number_input(f'Largura de Detecção', min_value=1, value=640, step=1, key=f'detect_width_{i}')
+            with col_cam2:
+                detect_height = st.number_input(f'Altura de Detecção', min_value=1, value=480, step=1, key=f'detect_height_{i}')
+            with col_cam3:
+                detect_fps = st.number_input(f'FPS de Detecção', min_value=1, value=10, step=1, key=f'detect_fps_{i}')
+
+            st.markdown(f"**Objetos para rastrear na Câmera {i+1}**")
+            objects_to_track = st.multiselect(
+                f'Selecione os objetos para rastrear na Câmera {i+1}',
+                options=available_objects,
+                default=['person'],
+                key=f'objects_to_track_{i}'
+            )
+
+            # Adiciona a configuração da câmera à lista
+            camera_config = {
+                'name': camera_name,
+                'path': camera_path,
+                'detect_width': detect_width,
+                'detect_height': detect_height,
+                'detect_fps': detect_fps,
+                'objects_to_track': objects_to_track
+            }
+
+            camera_list.append(camera_config)
+
+        submit_frigate = st.form_submit_button('Gerar Configuração')
+
+    if submit_frigate:
+        if mqtt_host and mqtt_user and mqtt_password:
+            # Monta o dicionário de configuração
+            frigate_config = {}
+
+            frigate_config['mqtt'] = {
+                'host': mqtt_host,
+                'user': mqtt_user,
+                'password': mqtt_password
+            }
+
+            frigate_config['cameras'] = {}
+
+            for cam in camera_list:
+                camera_name = cam['name']
+                frigate_config['cameras'][camera_name] = {
+                    'ffmpeg': {
+                        'inputs': [
+                            {
+                                'path': cam['path'],
+                                'roles': ['detect']
+                            }
+                        ]
+                    },
+                    'detect': {
+                        'width': cam['detect_width'],
+                        'height': cam['detect_height'],
+                        'fps': cam['detect_fps']
+                    },
+                    'objects': {
+                        'track': cam['objects_to_track']
+                    },
+                    'snapshots': {
+                        'enabled': True,
+                        'timestamp': False,
+                        'bounding_box': True,
+                        'retain': {
+                            'default': 2
+                        }
+                    }
+                }
+
+            # Adiciona configurações padrão (ajuste conforme necessário)
+            frigate_config['detectors'] = {
+                'cpu': {
+                    'type': 'cpu'
+                }
+            }
+
+            frigate_config['version'] = '0.14.0'  # Atualize para a versão que estiver usando
+
+            # Gera o YAML sem anotações específicas do Python
+            frigate_yaml = yaml.safe_dump(frigate_config, sort_keys=False, default_flow_style=False)
+
+            st.markdown("### Configuração Gerada (`frigate.yml`):")
+            st.code(frigate_yaml, language='yaml')
+
+            st.markdown("#### Instruções para Uso:")
+            st.markdown("""
+            - Copie o conteúdo acima e cole em um arquivo chamado `frigate.yml` na pasta de configuração do seu Home Assistant.
+            - Certifique-se de que as URLs das câmeras estão corretas e acessíveis pelo Frigate.
+            - Reinicie o Frigate para aplicar as novas configurações.
+            """)
+        else:
+            st.warning('Por favor, preencha as informações do MQTT (host, usuário e senha).')
