@@ -6,6 +6,8 @@ from st_link_analysis import st_link_analysis, NodeStyle, EdgeStyle
 import requests
 from bs4 import BeautifulSoup  # Certifique-se de ter o BeautifulSoup instalado
 
+
+
 # Configurações
 st.set_page_config(layout="wide", page_title='Smart Chosk - Ferramentas do HomeAssistant', initial_sidebar_state='collapsed')
 
@@ -30,8 +32,8 @@ navPage = ui.tabs(options=[
     'Visão de Teia',
     'Tabela de Entidades',
     'Teste Scrape',
-    'Cálculo de Hardware',  # Nova tela adicionada
-], default_value='Visão Geral', key="navigation")
+    'Cálculo de Hardware (Beta)',
+], default_value='Início', key="navigation")
 
 if navPage == 'Início':
     st.title("Bem-vindo ao Smart Chosk - Ferramentas do HomeAssistant")
@@ -324,7 +326,7 @@ elif navPage == 'Teste Scrape':
         """)
 
         
-elif navPage == 'Cálculo de Hardware':
+elif navPage == 'Cálculo de Hardware (Beta)':
     st.title("Cálculo de Hardware Necessário para o Home Assistant")
 
     st.markdown("""
@@ -349,8 +351,11 @@ elif navPage == 'Cálculo de Hardware':
         st.markdown("#### Dispositivos de Alta Demanda")
         col3, col4 = st.columns(2)
         with col3:
-            num_cameras = st.number_input('Número de Câmeras', min_value=0, value=0, step=1)
+            num_cameras = st.number_input('Número de Câmeras (Máximo recomendado: 20)', min_value=0, value=0, step=1)
             num_dispositivos_streaming = st.number_input('Número de Dispositivos de Streaming (Chromecast, etc.)', min_value=0, value=0, step=1)
+
+        usar_cpu = False
+        usar_openvino = False
 
         st.markdown("#### Integrações Adicionais")
         col5, col6 = st.columns(2)
@@ -358,6 +363,11 @@ elif navPage == 'Cálculo de Hardware':
             usar_assistente_virtual = st.checkbox('Utilizar Assistente Virtual (Alexa, Google Assistant)')
             usar_automacoes_complexas = st.checkbox('Utilizar Automações Complexas')
             usar_frigate = st.checkbox('Utilizar o Frigate (Add-on para detecção de câmeras)')
+            if usar_frigate:
+                st.write("#### Unidade de Processamento de IA (Frigate)")
+                usar_cpu = st.checkbox('Utilizar CPU (Não recomendado)', value=True)
+                usar_coral = st.checkbox('Utilizar Google Coral')
+                usar_openvino = st.checkbox('Utilizar Openvino (O processador deve suportar instruções AVX2)')
         with col6:
             usar_addons = st.checkbox('Utilizar Add-ons Pesados (ex: Node-Red, InfluxDB)')
 
@@ -366,83 +376,100 @@ elif navPage == 'Cálculo de Hardware':
     if submit_hardware:
         # Cálculo do hardware necessário
         # Definir valores base
-        cpu_base = 1.0  # 1 núcleo
-        ram_base = 1.0  # 1 GB
+        cpu_base = 4.0  # 4 núcleo
+        ram_base = 4.0  # 4 GB
         storage_base = 16  # 16 GB
+
+        def arredondar_para_par(numero):
+            return int(round(numero / 2) * 2)
 
         # Ajustes com base nos dispositivos básicos
         dispositivos_basicos = num_luzes + num_tomadas + num_sensores_abertura + num_sensores_movimento
-        cpu_base += dispositivos_basicos * 0.05  # Cada dispositivo básico adiciona 0.05 núcleos
-        ram_base += dispositivos_basicos * 0.02  # Cada dispositivo básico adiciona 20 MB de RAM
-
+        ram_base += (dispositivos_basicos // 50) * 0.5  # A cada 50 dispositivos básicos, adiciona 0.5GB de RAM
+        
         # Ajustes com base em dispositivos de alta demanda
-        cpu_base += num_cameras * 0.5  # Cada câmera adiciona 0.5 núcleos
-        ram_base += num_cameras * 0.5  # Cada câmera adiciona 500 MB de RAM
+        cpu_base += (num_cameras // 5) * 0.5 # Cada 5 câmeras adiciona 0.5 núcleos
+        ram_base += (num_cameras // 5) * 0.5 # Cada 5 câmeras adiciona 500 MB de RAM
+        storage_base += num_cameras // 5 # Cada 5 câmeras adiciona 1 GB de armazenamento
+    #    cpu_base += num_cameras * 0.2  # Cada câmera adiciona 0.5 núcleos
+    #    ram_base += num_cameras * 0.1  # Cada câmera adiciona 500 MB de RAM
 
         cpu_base += num_dispositivos_streaming * 0.1
         ram_base += num_dispositivos_streaming * 0.05
 
         # Ajustes com base em integrações adicionais
         if usar_assistente_virtual:
-            cpu_base += 0.2
+        #    cpu_base += 0.2
             ram_base += 0.1
 
         if usar_automacoes_complexas:
-            cpu_base += 0.3
+            cpu_base += 0.2
             ram_base += 0.2
 
         if usar_addons:
-            cpu_base += 0.5
+        #    cpu_base += 0.5
             ram_base += 0.5
             storage_base += 8  # Add-ons pesados requerem mais espaço em disco
 
-        # Ajustes específicos para o Frigate
         if usar_frigate:
-            cpu_base += num_cameras * 1.0  # Frigate adiciona 1 núcleo por câmera
-            ram_base += num_cameras * 0.5  # Frigate adiciona 500 MB de RAM por câmera
-            storage_base += num_cameras * 10  # Frigate requer armazenamento extra por câmera (10 GB)
+            if usar_coral or usar_openvino:
+                cpu_base += num_cameras * (0.1 if usar_coral else 0.3)
+            else:
+                cpu_base += num_cameras * 0.8
+            ram_base += num_cameras * 0.7  # 500 MB de RAM por câmera
+            storage_base += num_cameras * 65  # 65GB de armazenamento por câmera para 1 dia de gravação contínua
 
-        # Limitar o número de núcleos a 16
-        max_cores = 16
+        # Limitar o número de núcleos a 96
+        max_cores = 96
         cpu_base = min(cpu_base, max_cores)
 
         # Arredondar valores
-        cpu_recomendado = round(cpu_base, 1)
-        ram_recomendado = round(ram_base, 1)
+        cpu_recomendado = arredondar_para_par(cpu_base)
+        ram_recomendado = arredondar_para_par(ram_base)
         storage_recomendado = round(storage_base)
 
         # Exibir resultados
-        st.markdown("### Hardware Recomendado:")
-        st.markdown(f"- **CPU**: {cpu_recomendado} núcleo(s) (máximo recomendado: {max_cores} núcleos)")
+        st.markdown("### Hardware Mínimo Recomendado:")
+        st.markdown(f"- **CPU**: {cpu_recomendado} núcleo(s)")
         st.markdown(f"- **Memória RAM**: {ram_recomendado} GB")
         st.markdown(f"- **Armazenamento**: {storage_recomendado} GB")
 
         # Sugestões de hardware com base nos resultados
         st.markdown("### Sugestões de Hardware:")
 
-        if cpu_recomendado <= 2 and ram_recomendado <= 2:
-            st.markdown("- Um **Raspberry Pi 4** com 2GB de RAM pode ser suficiente.")
+        if cpu_recomendado <= 4 and ram_recomendado <= 4 and not usar_frigate :
+            st.markdown("- Um **Raspberry Pi 4** com 4GB de RAM pode ser suficiente.")
             st.markdown("- **Processador**: Broadcom BCM2711, Quad core Cortex-A72 (ARM v8) 64-bit SoC @ 1.5GHz")
-        elif cpu_recomendado <= 4 and ram_recomendado <= 4:
-            st.markdown("- Considere um **Raspberry Pi 4** com 4GB de RAM ou um **mini PC**.")
-            st.markdown("- **Processadores sugeridos**: Intel Celeron J4105, Intel Pentium Silver N5000")
-        elif cpu_recomendado <= 8 and ram_recomendado <= 8:
-            st.markdown("- Um **mini PC** mais potente ou um **servidor NAS** com melhor desempenho.")
-            st.markdown("- **Processadores sugeridos**: Intel Core i3/i5, AMD Ryzen 3/5")
-        elif cpu_recomendado <= 16 and ram_recomendado <= 16:
-            st.markdown("- Um **PC dedicado** ou **servidor** de alto desempenho.")
-            st.markdown("- **Processadores sugeridos**: Intel Core i7/i9, AMD Ryzen 7/9, Intel Xeon E-series")
+        elif cpu_recomendado <= 4 and ram_recomendado <= 8 and not usar_cpu:
+            st.markdown("- Considere um **mini PC** com 8GB de RAM.")
+            st.markdown("- **Processadores sugeridos** (com suporte ao OpenVINO): Intel N97, Intel N100, Intel N200")
+        elif cpu_recomendado <= 8 and ram_recomendado <= 16:
+            if not usar_openvino:
+                st.markdown("- Um **mini PC** mais potente ou um **servidor NAS** com melhor desempenho.")
+                st.markdown("- **Processadores sugeridos**: Intel Core i3/i5 ou AMD Ryzen 3/5\n\n")
+            if usar_openvino:
+                ("- Um **mini PC** mais potente ou um **servidor NAS** com melhor desempenho.")
+                st.markdown("- **Processadores sugeridos**: Intel Core i3/i5\n\n")
+                st.markdown("**Nota**: OpenVINO é compatível com processadores Intel de 6ª geração ou superior que suportem instruções AVX2.")        
+        elif cpu_recomendado <= 16 and ram_recomendado <= 32:            
+            if not usar_openvino:
+                st.markdown("- Um **PC dedicado** ou **servidor** de alto desempenho.")
+                st.markdown("- **Processadores sugeridos**: Intel Core i7/i9, AMD Ryzen 7/9, Intel Xeon E-series")
+            if usar_openvino:
+                st.markdown("- Um **PC dedicado** ou **servidor** de alto desempenho.")
+                st.markdown("- **Processadores sugeridos**: Intel Core i7/i9")
+                st.markdown("**Nota**: OpenVINO é compatível com processadores Intel de 6ª geração ou superior que suportem instruções AVX2.")
         else:
             st.markdown("- **Atenção**: Os requisitos calculados excedem os processadores comuns.")
             st.markdown("- Considere distribuir a carga em múltiplas máquinas ou utilizar hardware de nível servidor.")
             st.markdown("- **Processadores sugeridos**: Múltiplos processadores Intel Xeon ou AMD EPYC")
 
         st.markdown("#### Observações:")
-        st.markdown(f"- O número máximo de núcleos considerado é {max_cores}. Para requisitos acima disso, recomenda-se soluções especializadas.")
-        st.markdown("- Estes são valores estimados. Dependendo das especificidades dos dispositivos e integrações, os requisitos podem variar.")
-        st.markdown("- Para uso com câmeras e add-ons pesados como o Frigate, é altamente recomendado usar um hardware mais robusto.")
-
+        st.markdown(f"- **Limite de CPU**: O número máximo recomendado de núcleos é {max_cores}. Para necessidades além disso, recomenda-se considerar soluções especializadas.")
+        st.markdown("- **Estimativas Aproximadas**: Os valores apresentados são estimativas. Dependendo das especificidades dos dispositivos e integrações, os requisitos reais podem variar.")
+        st.markdown("- **Uso com Câmeras e Add-ons Intensivos**: Para câmeras e add-ons pesados como o Frigate, é recomendado optar por um hardware mais robusto para garantir uma performance consistente.")
+        if usar_frigate:
+            st.markdown("- **Câmeras de Baixa Resolução e Taxa de Quadros Reduzida**: Câmeras com resolução de até 720p e taxa de quadros de 5 FPS tendem a consumir menos recursos de CPU. Se sua câmera for de alta resolução, como 4K, considere configurar o Frigate para utilizar a transmissão secundária (substream) em vez da transmissão principal, o que pode reduzir significativamente a carga de processamento.")
 
     else:
         st.warning('Por favor, insira a URL Externa e o Token na barra lateral e clique em Enviar.')
-
