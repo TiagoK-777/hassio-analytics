@@ -530,7 +530,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
             with col_cam2:
                 detect_height = st.number_input(f'Altura de Detecção', min_value=1, value=480, step=1, key=f'detect_height_{i}')
             with col_cam3:
-                detect_fps = st.number_input(f'FPS de Detecção', min_value=1, value=10, step=1, key=f'detect_fps_{i}')
+                detect_fps = st.number_input(f'FPS de Detecção', min_value=1, value=5, step=1, key=f'detect_fps_{i}')
 
             st.markdown(f"**Objetos para rastrear na Câmera {i+1}**")
             objects_to_track = st.multiselect(
@@ -551,6 +551,12 @@ elif navPage == 'Assistente de Configuração do Frigate':
             }
 
             camera_list.append(camera_config)
+
+        st.markdown(f"**Selecione a unidade de processamento de IA**")
+
+        cpu_detector = st.checkbox('CPU (Não recomendado)', True)
+        coral_detector = st.checkbox('Google Coral')
+        openvino_detector = st.checkbox('OpenVINO')
 
         submit_frigate = st.form_submit_button('Gerar Configuração')
 
@@ -597,23 +603,49 @@ elif navPage == 'Assistente de Configuração do Frigate':
                 }
 
             # Adiciona configurações padrão (ajuste conforme necessário)
-            frigate_config['detectors'] = {
-                'cpu': {
+            frigate_config['detectors'] = {}
+
+            if coral_detector:
+                frigate_config['detectors']['coral'] = {
+                    'type': 'edgetpu',
+                    'device': 'usb'
+                }
+
+            if openvino_detector:
+                frigate_config['detectors']['ov'] = {
+                    'type': 'openvino',
+                    'device': 'GPU'
+                }
+                frigate_config['detectors']['model'] = {
+                    'width': 300,
+                    'height': 300,
+                    'input_tensor': 'nhwc',
+                    'input_pixel_format': 'bgr',
+                    'path': '/openvino-model/ssdlite_mobilenet_v2.xml',
+                    'labelmap_path': '/openvino-model/coco_91cl_bkgr.txt'
+                }
+
+            # Configuração alternativa caso nenhum dos anteriores seja usado
+            if not (coral_detector or openvino_detector):
+                frigate_config['detectors']['cpu'] = {
                     'type': 'cpu'
                 }
+            frigate_config['ffmpeg'] = {
+                'hwaccel_args': 'preset-vaapi'
             }
-
-            frigate_config['version'] = '0.14'  # Corrigido a versão
+                
+            frigate_config['version'] = 0.14  # Atualize para a versão que estiver usando
 
             # Gera o YAML sem anotações específicas do Python
             frigate_yaml = yaml.safe_dump(frigate_config, sort_keys=False, default_flow_style=False)
 
             st.markdown("### Configuração Gerada (`frigate.yml`):")
-            st.code(frigate_yaml, language='yaml')
+            st.code(frigate_yaml, language='yml')
 
             st.markdown("#### Instruções para Uso:")
             st.markdown("""
             - Copie o conteúdo acima e cole em um arquivo chamado `frigate.yml` na pasta de configuração do seu Home Assistant.
+            - Se estiver usando o Docker, salve como config.yml.           
             - Certifique-se de que as URLs das câmeras estão corretas e acessíveis pelo Frigate.
             - Reinicie o Frigate para aplicar as novas configurações.
             """)
