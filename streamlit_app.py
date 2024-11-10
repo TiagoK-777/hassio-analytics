@@ -603,7 +603,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                 }
             }
 
-            frigate_config['version'] = '0.14.0'  # Atualize para a versão que estiver usando
+            frigate_config['version'] = '0.14'  # Corrigido a versão
 
             # Gera o YAML sem anotações específicas do Python
             frigate_yaml = yaml.safe_dump(frigate_config, sort_keys=False, default_flow_style=False)
