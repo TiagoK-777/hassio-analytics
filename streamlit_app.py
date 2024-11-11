@@ -522,8 +522,9 @@ elif navPage == 'Assistente de Configuração do Frigate':
         for i in range(int(num_cameras)):
             st.markdown(f"##### Configuração da Câmera {i+1}")
             camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}')
-            camera_path = st.text_input(f'URL RTSP da Câmera {i+1}', value='', key=f'camera_path_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
-            
+            camera_path_main = st.text_input(f'URL RTSP de alta resolução (main) da Câmera {i+1}', value='', key=f'camera_path_main_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
+            camera_path_sub = st.text_input(f'URL RTSP de baixa resolução (sub) da Câmera {i+1}', value='', key=f'camera_path_sub_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
+
             col_cam1, col_cam2, col_cam3 = st.columns(3)
             with col_cam1:
                 detect_width = st.number_input(f'Largura de Detecção', min_value=1, value=640, step=1, key=f'detect_width_{i}')
@@ -543,7 +544,8 @@ elif navPage == 'Assistente de Configuração do Frigate':
             # Adiciona a configuração da câmera à lista
             camera_config = {
                 'name': camera_name,
-                'path': camera_path,
+                'path_main': camera_path_main,
+                'path_sub': camera_path_sub,
                 'detect_width': detect_width,
                 'detect_height': detect_height,
                 'detect_fps': detect_fps,
@@ -551,6 +553,13 @@ elif navPage == 'Assistente de Configuração do Frigate':
             }
 
             camera_list.append(camera_config)
+
+        st.markdown(f"##### Gravação e Instantâneos")
+        col_cam1, col_cam2 = st.columns(2)
+        with col_cam1:
+            reter_gravacao = st.number_input('Dias para reter as gravações', min_value=0, value=0, step=1)
+        with col_cam2:
+            reter_instantaneos = st.number_input('Dias para reter os instantâneos', min_value=0, value=0, step=1)
 
         st.markdown(f"**Selecione a unidade de processamento de IA**")
 
@@ -579,8 +588,14 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'ffmpeg': {
                         'inputs': [
                             {
-                                'path': cam['path'],
-                                'roles': ['detect']
+                                'path': cam['path_main'],
+                                'input_args': 'preset-rtsp-generic',
+                                'roles': ['record'],
+                            },
+                            {
+                                'path': cam['path_sub'],
+                                'input_args': 'preset-rtsp-generic',
+                                'roles': ['detect'],
                             }
                         ]
                     },
@@ -591,13 +606,29 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     },
                     'objects': {
                         'track': cam['objects_to_track']
+                    }
+                }
+
+            if reter_instantaneos > 0:
+                frigate_config['snapshots'] = {
+                    'enabled': True,
+                    'timestamp': False,
+                    'bounding_box': True,
+                    'retain': {
+                        'default': reter_instantaneos
+                    }
+                }                
+            if reter_gravacao > 0:
+                frigate_config['record'] = {
+                    'enabled': True,
+                    'retain': {
+                        'days': 0,
+                        'mode': 'all'
                     },
-                    'snapshots': {
-                        'enabled': True,
-                        'timestamp': False,
-                        'bounding_box': True,
+                    'events': {
                         'retain': {
-                            'default': 2
+                            'default': reter_gravacao,
+                            'mode': 'active_objects'
                         }
                     }
                 }
@@ -624,8 +655,6 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'path': '/openvino-model/ssdlite_mobilenet_v2.xml',
                     'labelmap_path': '/openvino-model/coco_91cl_bkgr.txt'
                 }
-
-            # Configuração alternativa caso nenhum dos anteriores seja usado
             if not (coral_detector or openvino_detector):
                 frigate_config['detectors']['cpu'] = {
                     'type': 'cpu'
@@ -634,7 +663,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                 'hwaccel_args': 'preset-vaapi'
             }
                 
-            frigate_config['version'] = 0.14  # Atualize para a versão que estiver usando
+#            frigate_config['version'] = 0.14  # Atualize para a versão que estiver usando
 
             # Gera o YAML sem anotações específicas do Python
             frigate_yaml = yaml.safe_dump(frigate_config, sort_keys=False, default_flow_style=False)
@@ -645,7 +674,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
             st.markdown("#### Instruções para Uso:")
             st.markdown("""
             - Copie o conteúdo acima e cole em um arquivo chamado `frigate.yml` na pasta de configuração do seu Home Assistant.
-            - Se estiver usando o Docker, salve como config.yml.           
+            - Se estiver usando o Docker, salve como `config.yml`.           
             - Certifique-se de que as URLs das câmeras estão corretas e acessíveis pelo Frigate.
             - Reinicie o Frigate para aplicar as novas configurações.
             """)
