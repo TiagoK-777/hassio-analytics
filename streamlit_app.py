@@ -322,7 +322,7 @@ elif navPage == 'Teste Scrape':
         """)
 
         st.markdown("#### Em Node-Red:") 
-        st.markdown("""
+        st.markdown(r"""
         Em um nó Function, realizar o tratamento.
         ```
         msg.payload = parseFloat(msg.payload.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
@@ -522,16 +522,16 @@ elif navPage == 'Assistente de Configuração do Frigate':
         for i in range(int(num_cameras)):
             st.markdown(f"##### Configuração da Câmera {i+1}")
             camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}')
-            camera_path_main = st.text_input(f'URL RTSP de alta resolução (main) da Câmera {i+1}', value='', key=f'camera_path_main_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
-            camera_path_sub = st.text_input(f'URL RTSP de baixa resolução (sub) da Câmera {i+1}', value='', key=f'camera_path_sub_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/...')
+            camera_path_main = st.text_input(f'URL RTSP de alta resolução (main) da Câmera {i+1}', value='', key=f'camera_path_main_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
+            camera_path_sub = st.text_input(f'URL RTSP de baixa resolução (sub) da Câmera {i+1}', value='', key=f'camera_path_sub_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
 
             col_cam1, col_cam2, col_cam3 = st.columns(3)
             with col_cam1:
-                detect_width = st.number_input(f'Largura de Detecção', min_value=1, value=640, step=1, key=f'detect_width_{i}')
+                detect_width = st.number_input(f'Largura de Detecção', min_value=1, value=640, step=1, key=f'detect_width_{i}', help= 'Recomenda-se que coincida com a resolução da stream secundária (sub) da câmera.')
             with col_cam2:
-                detect_height = st.number_input(f'Altura de Detecção', min_value=1, value=480, step=1, key=f'detect_height_{i}')
+                detect_height = st.number_input(f'Altura de Detecção', min_value=1, value=480, step=1, key=f'detect_height_{i}', help= 'Recomenda-se que coincida com a resolução da stream secundária (sub) da câmera.')
             with col_cam3:
-                detect_fps = st.number_input(f'FPS de Detecção', min_value=1, value=5, step=1, key=f'detect_fps_{i}')
+                detect_fps = st.number_input(f'FPS de Detecção', min_value=1, value=5, step=1, key=f'detect_fps_{i}', help= 'Aumentar este valor não melhora o desempenho e pode sobrecarregar o sistema.')
 
             st.markdown(f"**Objetos para rastrear na Câmera {i+1}**")
             objects_to_track = st.multiselect(
@@ -540,7 +540,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                 default=['person'],
                 key=f'objects_to_track_{i}'
             )
-
+    
             # Adiciona a configuração da câmera à lista
             camera_config = {
                 'name': camera_name,
@@ -554,17 +554,17 @@ elif navPage == 'Assistente de Configuração do Frigate':
 
             camera_list.append(camera_config)
 
-        st.markdown(f"##### Gravação e Instantâneos")
+        st.markdown(f"#### Gravação e Instantâneos")
         col_cam1, col_cam2 = st.columns(2)
         with col_cam1:
-            reter_gravacao = st.number_input('Dias para reter as gravações', min_value=0, value=0, step=1)
+            reter_gravacao = st.number_input('Dias para reter as gravações', min_value=0, value=1, step=1, help= 'Por quantos dias você gostaria de manter as gravações no disco? Defina 0 para desativar essa opção.')
         with col_cam2:
-            reter_instantaneos = st.number_input('Dias para reter os instantâneos', min_value=0, value=0, step=1)
+            reter_instantaneos = st.number_input('Dias para reter os instantâneos', min_value=0, value=1, step=1, help= 'Por quantos dias você gostaria de manter os instantâneos no disco? Defina 0 para desativar essa opção.')
 
-        st.markdown(f"**Selecione a unidade de processamento de IA**")
+        st.markdown(f"#### Selecione a unidade de processamento de IA", help= 'Selecione aqui a unidade de processamento de IA que deseja utilizar. Note que a CPU é recomendada apenas para testes. [Saiba mais](https://docs.frigate.video/configuration/object_detectors)')
 
         cpu_detector = st.checkbox('CPU (Não recomendado)', True)
-        coral_detector = st.checkbox('Google Coral')
+        coral_detector = st.checkbox('Google Coral (USB)')
         openvino_detector = st.checkbox('OpenVINO')
 
         submit_frigate = st.form_submit_button('Gerar Configuração')
@@ -633,6 +633,15 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     }
                 }
 
+            frigate_config['birdseye'] = {
+                'enabled': True,
+                'restream': False,
+                'width': 1280,
+                'height': 720,
+                'quality': 8,
+                'mode': 'objects'
+            }
+
             # Adiciona configurações padrão (ajuste conforme necessário)
             frigate_config['detectors'] = {}
 
@@ -661,13 +670,11 @@ elif navPage == 'Assistente de Configuração do Frigate':
                 }
             frigate_config['ffmpeg'] = {
                 'hwaccel_args': 'preset-vaapi'
-            }
-                
-#            frigate_config['version'] = 0.14  # Atualize para a versão que estiver usando
+            }                
 
             # Gera o YAML sem anotações específicas do Python
             frigate_yaml = yaml.safe_dump(frigate_config, sort_keys=False, default_flow_style=False)
-
+    
             st.markdown("### Configuração Gerada (`frigate.yml`):")
             st.code(frigate_yaml, language='yml')
 
