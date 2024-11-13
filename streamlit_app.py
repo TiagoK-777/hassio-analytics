@@ -677,7 +677,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'type': 'cpu'
                 }
             frigate_config['ffmpeg'] = {
-                'hwaccel_args': 'preset-vaapi'
+                'hwaccel_args': 'auto'
             }                
 
             # Gera o YAML sem anotações específicas do Python
