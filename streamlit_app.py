@@ -527,7 +527,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
 
         for i in range(int(num_cameras)):
             st.markdown(f"##### Configuração da Câmera {i+1}")
-            camera_name = st.text_input(f'ID da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}', help= 'Qual o nome da câmera? Exemplo: Câmera do portão social')
+            camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}', help= 'Qual o nome da câmera? Exemplo: Câmera do portão social')
             camera_path_main = st.text_input(f'URL RTSP de alta resolução (main) da Câmera {i+1}', value='', key=f'camera_path_main_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
             camera_path_sub = st.text_input(f'URL RTSP de baixa resolução (sub) da Câmera {i+1}', value='', key=f'camera_path_sub_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
 
@@ -613,7 +613,14 @@ elif navPage == 'Assistente de Configuração do Frigate':
                         'fps': cam['detect_fps']
                     },
                     'objects': {
-                        'track': cam['objects_to_track']
+                        'track': cam['objects_to_track'],                    
+                        'filters': {
+                            'person': { 
+                            'min_score': 0.5,
+                            'threshold': 0.7,
+                            'max_ratio': 0.8
+                            }
+                        }
                     }
                 }
 
