@@ -7,8 +7,14 @@ import requests
 from bs4 import BeautifulSoup  # Certifique-se de ter o BeautifulSoup instalado
 from collections import OrderedDict
 import yaml  # Biblioteca para trabalhar com YAML
+import re
+from unidecode import unidecode
 
-
+def normalize_name(name):
+    name = unidecode(name)
+    name = re.sub(r'\W+', '_', name)
+    name = name.strip('_')
+    return name.lower()
 
 # Configurações
 st.set_page_config(layout="wide", page_title='Smart Chosk - Ferramentas do HomeAssistant', initial_sidebar_state='collapsed')
@@ -521,9 +527,11 @@ elif navPage == 'Assistente de Configuração do Frigate':
 
         for i in range(int(num_cameras)):
             st.markdown(f"##### Configuração da Câmera {i+1}")
-            camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}')
+            camera_name = st.text_input(f'Nome da Câmera {i+1}', value=f'camera_{i+1}', key=f'camera_name_{i}', help= 'Qual o nome da câmera? Exemplo: Câmera do portão social')
             camera_path_main = st.text_input(f'URL RTSP de alta resolução (main) da Câmera {i+1}', value='', key=f'camera_path_main_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
             camera_path_sub = st.text_input(f'URL RTSP de baixa resolução (sub) da Câmera {i+1}', value='', key=f'camera_path_sub_{i}', help='Exemplo: rtsp://usuario:senha@ip_da_camera:554/... Para encontrar a URL da sua câmera, consulte [este site](https://www.ispyconnect.com/pt/cameras).')
+
+            camera_name = normalize_name(camera_name)
 
             col_cam1, col_cam2, col_cam3 = st.columns(3)
             with col_cam1:
@@ -554,14 +562,14 @@ elif navPage == 'Assistente de Configuração do Frigate':
 
             camera_list.append(camera_config)
 
-        st.markdown(f"#### Gravação e Instantâneos")
+        st.markdown("#### Gravação e Instantâneos")
         col_cam1, col_cam2 = st.columns(2)
         with col_cam1:
             reter_gravacao = st.number_input('Dias para reter as gravações', min_value=0, value=1, step=1, help= 'Por quantos dias você gostaria de manter as gravações no disco? Defina 0 para desativar essa opção.')
         with col_cam2:
             reter_instantaneos = st.number_input('Dias para reter os instantâneos', min_value=0, value=1, step=1, help= 'Por quantos dias você gostaria de manter os instantâneos no disco? Defina 0 para desativar essa opção.')
 
-        st.markdown(f"#### Selecione a unidade de processamento de IA", help= 'Selecione aqui a unidade de processamento de IA que deseja utilizar. Note que a CPU é recomendada apenas para testes. [Saiba mais](https://docs.frigate.video/configuration/object_detectors)')
+        st.markdown("#### Selecione a unidade de processamento de IA", help= 'Selecione aqui a unidade de processamento de IA que deseja utilizar. Note que a CPU é recomendada apenas para testes. [Saiba mais](https://docs.frigate.video/configuration/object_detectors)')
 
         cpu_detector = st.checkbox('CPU (Não recomendado)', True)
         coral_detector = st.checkbox('Google Coral (USB)')
@@ -605,7 +613,14 @@ elif navPage == 'Assistente de Configuração do Frigate':
                         'fps': cam['detect_fps']
                     },
                     'objects': {
-                        'track': cam['objects_to_track']
+                        'track': cam['objects_to_track'],                    
+                        'filters': {
+                            'person': { 
+                            'min_score': 0.5,
+                            'threshold': 0.7,
+                            'max_ratio': 0.8
+                            }
+                        }
                     }
                 }
 
@@ -656,7 +671,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'type': 'openvino',
                     'device': 'GPU'
                 }
-                frigate_config['detectors']['model'] = {
+                frigate_config['model'] = {
                     'width': 300,
                     'height': 300,
                     'input_tensor': 'nhwc',
@@ -669,7 +684,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'type': 'cpu'
                 }
             frigate_config['ffmpeg'] = {
-                'hwaccel_args': 'preset-vaapi'
+                'hwaccel_args': 'auto'
             }                
 
             # Gera o YAML sem anotações específicas do Python

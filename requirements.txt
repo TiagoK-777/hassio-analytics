@@ -4,3 +4,5 @@ pandas
 requests
 st_link_analysis
 PyYAML==6.0.2
+unidecode
+beautifulsoup4
