@@ -671,7 +671,7 @@ elif navPage == 'Assistente de Configuração do Frigate':
                     'type': 'openvino',
                     'device': 'GPU'
                 }
-                frigate_config['detectors']['model'] = {
+                frigate_config['model'] = {
                     'width': 300,
                     'height': 300,
                     'input_tensor': 'nhwc',
