@@ -397,14 +397,14 @@ elif navPage == 'Cálculo de Hardware (Beta)':
         ram_base += (dispositivos_basicos // 50) * 0.5  # A cada 50 dispositivos básicos, adiciona 0.5GB de RAM
         
         # Ajustes com base em dispositivos de alta demanda
-        cpu_base += (num_cameras // 5) * 0.5 # Cada 5 câmeras adiciona 0.5 núcleos
+        cpu_base += (num_cameras // 5) * 0.2 # Cada 5 câmeras adiciona 0.5 núcleos
         ram_base += (num_cameras // 5) * 0.5 # Cada 5 câmeras adiciona 500 MB de RAM
         storage_base += num_cameras // 5 # Cada 5 câmeras adiciona 1 GB de armazenamento
     #    cpu_base += num_cameras * 0.2  # Cada câmera adiciona 0.5 núcleos
     #    ram_base += num_cameras * 0.1  # Cada câmera adiciona 500 MB de RAM
 
-        cpu_base += num_dispositivos_streaming * 0.1
-        ram_base += num_dispositivos_streaming * 0.05
+    #    cpu_base += num_dispositivos_streaming * 0.1
+        ram_base += num_dispositivos_streaming * 0.1
 
         # Ajustes com base em integrações adicionais
         if usar_assistente_virtual:
