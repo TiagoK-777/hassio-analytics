@@ -7,6 +7,7 @@ import requests
 from bs4 import BeautifulSoup  # Certifique-se de ter o BeautifulSoup instalado
 from collections import OrderedDict
 import yaml  # Biblioteca para trabalhar com YAML
+import base64
 import re
 from unidecode import unidecode
 
@@ -15,6 +16,7 @@ def normalize_name(name):
     name = re.sub(r'\W+', '_', name)
     name = name.strip('_')
     return name.lower()
+
 
 # Configurações
 st.set_page_config(layout="wide", page_title='Smart Chosk - Ferramentas do HomeAssistant', initial_sidebar_state='collapsed')
@@ -42,6 +44,7 @@ navPage = ui.tabs(options=[
     'Teste Scrape',
     'Cálculo de Hardware (Beta)',
     'Assistente de Configuração do Frigate',  # Nova página adicionada
+    'Floorplan Helper'
 ], default_value='Início', key="navigation")
 
 if navPage == 'Início':
@@ -702,3 +705,151 @@ elif navPage == 'Assistente de Configuração do Frigate':
             """)
         else:
             st.warning('Por favor, preencha as informações do MQTT (host, usuário e senha).')
+
+
+elif navPage == 'Floorplan Helper':
+
+
+    def render_js():
+        # JavaScript para capturar coordenadas
+        js_code = """
+        <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const imgElement = document.getElementById("image-to-map");
+            const coordsDisplay = document.getElementById("coords-display");
+
+            if (imgElement && coordsDisplay) {
+                imgElement.addEventListener("click", function (event) {
+                    const rect = imgElement.getBoundingClientRect();
+                    const left = ((event.clientX - rect.left) / rect.width) * 100;
+                    const top = ((event.clientY - rect.top) / rect.height) * 100;
+
+                    coordsDisplay.textContent = `left: ${left.toFixed(2)}%; top: ${top.toFixed(2)}%;`;
+                    coordsDisplay.style.visibility = "visible";
+                });
+            }
+        });
+        </script>
+        """
+        return js_code
+
+    # Inicializa o estado da sessão para left e top
+    if "left" not in st.session_state:
+        st.session_state["left"] = "50.00"
+    if "top" not in st.session_state:
+        st.session_state["top"] = "50.00"
+
+    # Página principal
+    st.title("Mapa de Coordenadas para Imagem")
+
+    st.markdown("""
+    ### Instruções:
+    1. Insira as dimensões exatas da imagem (Largura x Altura) em pixels.
+    2. Faça upload da imagem.
+    3. Clique na imagem para capturar as coordenadas (left/top) relativas.
+    4. Use essas coordenadas no cartão Picture-Elements do Home Assistant.
+    """)
+
+    # Input para dimensões da imagem
+    dimensions = st.text_input("Dimensões da Imagem (Largura x Altura)", value="1920 x 1080", help="Ex.: 1920 x 1080")
+
+    # Processa largura e altura
+    try:
+        width, height = map(int, dimensions.lower().replace(" ", "").split("x"))
+    except ValueError:
+        st.error("Por favor, insira as dimensões no formato correto: Largura x Altura (ex.: 1920 x 1080).")
+        width, height = 1920, 1080  # Valores padrão
+
+    # Upload da imagem
+    uploaded_file = st.file_uploader("Escolha uma imagem para mapear coordenadas", type=["png", "jpg", "jpeg"])
+
+    if uploaded_file is not None:
+        # Renderizar imagem carregada
+        img_data = uploaded_file.read()
+        encoded_img = base64.b64encode(img_data).decode('utf-8')
+        img_src = f"data:image/jpeg;base64,{encoded_img}"
+
+        # Renderizar HTML com JavaScript
+        st.components.v1.html(f"""
+        <div id="image-container" style="position: relative; text-align: center;">
+            <img id="image-to-map" src="{img_src}" style="max-width: 100%; height: auto; cursor: crosshair;" />
+            <div id="coords-display" style="
+                margin-top: 10px;
+                padding: 10px;
+                font-size: 16px;
+                font-weight: bold;
+                color: black;
+                background-color: rgba(255, 255, 255, 0.9);
+                border: 1px solid #ccc;
+                border-radius: 8px;
+                display: inline-block;
+                visibility: hidden;">
+                Clique na imagem para ver as coordenadas.
+            </div>
+            {render_js()}
+        """, height=height, scrolling=False)
+
+    # Inputs organizados em colunas
+    st.markdown("### Configurações do YAML")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        entity_id = st.text_input("ID da Entidade", value="input_boolean.ss_fp_area_servico", help="Ex.: input_boolean.nome_da_entidade")
+    with col2:
+        top = st.text_input("Top (%)", value=st.session_state["top"], help="Ex.: 50%")
+    with col3:
+        left = st.text_input("Left (%)", value=st.session_state["left"], help="Ex.: 50%")
+    with col4:
+        width = st.text_input("Largura (%)", value="100%", help="Ex.: 100%")
+
+    col5, col6, col7, col8 = st.columns(4)
+
+    with col5:
+        image_on = st.text_input("Imagem ON", value="local/floorplan/SS_AREASERVICO_ON_RENDER.png", help="Caminho da imagem para estado ON")
+    with col6:
+        image_off = st.text_input("Imagem OFF", value="local/floorplan/transparent.png", help="Caminho da imagem para estado OFF")
+    with col7:
+        icon = st.text_input("Ícone", value="mdi:ceiling-light", help="Ex.: mdi:ceiling-light")
+    with col8:
+        opacity = st.text_input("Opacidade", value="5", help="Ex.: 5")
+
+    # Gera o YAML com base nos inputs
+    yaml_output = f"""
+    - type: conditional
+      conditions:
+       - entity: {entity_id}
+         state: "on"
+      elements:
+       - type: image
+       entity: {entity_id}
+       style:
+        top: 50%
+        left: 50%
+        width: {width}
+        pointer-events: none
+    state_image:
+    "on": {image_on}
+    "off": {image_off}
+    - type: state-icon
+    entity: {entity_id}
+    icon: {icon}
+    tap_action:
+    action: toggle
+    style:
+    top: {st.session_state['top']}%
+    left: {st.session_state['left']}%
+    opacity: {opacity}
+    "--mdc-icon-size": 25px
+    "--paper-item-icon-color": white
+    """
+
+    # Exibe o YAML gerado
+    st.markdown("### YAML Gerado:")
+    st.code(yaml_output.strip(), language="yaml")
+
+    st.markdown("""
+    ### Instruções para Uso:
+    1. Copie o YAML gerado acima.
+    2. Cole no cartão Picture Elements do seu Home Assistant.
+    3. Certifique-se de que os caminhos das imagens estão corretos e que os arquivos existem no local indicado.
+    """)
